@@ -10,4 +10,27 @@ Things to take care of when implementing shit:
 1. Make sure that the `address` and `string` are indeed matching when the users (of the wallet) call `upgradeImplementation`.
 2. Make sure that only the latest nonces can be cancelled.
 	+ And cancellation is nothing but executing a txn with that nonce and let it have no effect whatsoever, effectively cancelling it.
-3. 
+3. Explain the scenario that prevents a fuck-all transition of "upgrade" from v12 to v1. How is that prevented.
+4. 🔍 Critical Dependency: changeAdmin(address) Must Be Called Correctly
+This will only work if your wallet logic’s initialize() function includes something like this:
+
+solidity
+Copy
+Edit
+function initialize(
+    address[] calldata owners,
+    uint256 threshold,
+    string calldata version
+) external initializer {
+    ...
+    TransparentUpgradeableProxy(payable(address(this))).changeAdmin(address(this));
+}
+🔒 It must:
+
+Be callable via delegatecall (i.e., from the proxy constructor)
+
+Use a guard like initializer to prevent re-entry
+
+Make the proxy admin slot point to address(this) — the wallet itself
+
+4. Make sure `pauseImplementation` can actually pause wallets. Right now they cannot.

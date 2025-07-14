@@ -35,7 +35,7 @@ interface ISaxenismWalletFactory {
     ) external returns (address wallet);
 
     //////////////////////////
-    // Priviliged Functions
+    // Privileged Functions
     //////////////////////////
 
     function addImplementation(
@@ -61,17 +61,17 @@ interface ISaxenismWalletFactory {
 
     function setLatestVersion(string calldata newLatestVersion) external;
 
-    function transferPriviligedAdmin(address newAdmin) external;
+    function transferPrivilegedAdmin(address newAdmin) external;
 
-    function acceptPriviligedAdmin() external;
+    function acceptPrivilegedAdmin() external;
 
     //////////////////
     // View Functions
     //////////////////
 
-    function getPriviligedAdmin() external view returns (address);
+    function getPrivilegedAdmin() external view returns (address);
 
-    function getPendingPriviligedAdmin() external view returns (address);
+    function getPendingPrivilegedAdmin() external view returns (address);
 
     function getImplementationInfo(string calldata version) external view returns (ImplementationInfo memory info);
 
@@ -92,4 +92,111 @@ interface ISaxenismWalletFactory {
     function getWalletCount() external view returns (uint256);
     
     function getWalletByIndex(uint256 index) external view returns (address);
+
+    ////////////////////////
+    // Events
+    ////////////////////////
+
+    /**
+     * @notice Emitted when a new wallet is deployed
+     * @param wallet Address of the deployed wallet proxy
+     * @param owners Initial owner addresses
+     * @param threshold Initial signature threshold
+     * @param version Implementation version used
+     * @param salt Salt used for CREATE2 deployment
+     * @param implementation Address of logic contract used
+     */
+    event WalletDeployed(
+        address indexed wallet,
+        address[] owners,
+        uint256 threshold,
+        string version,
+        bytes32 salt,
+        address indexed implementation
+    );
+    
+    /**
+     * @notice Emitted when a new implementation version is added
+     * @param version Version string identifier
+     * @param implementation Address of the logic contract
+     * @param deployer Address that added this implementation
+     */
+    event ImplementationAdded(
+        string indexed version,
+        address indexed implementation,
+        address indexed deployer
+    );
+    
+    /**
+     * @notice Emitted when an implementation is emergency paused
+     * @param version Version string that was paused
+     * @param implementation Address of the paused logic contract
+     * @param admin Address that triggered the pause
+     * @param reason Human-readable reason for pause
+     */
+    event ImplementationPaused(
+        string indexed version,
+        address indexed implementation,
+        address indexed admin,
+        string reason
+    );
+    
+    /**
+     * @notice Emitted when a paused implementation is unpaused
+     * @param version Version string that was unpaused
+     * @param implementation Address of the unpaused logic contract
+     * @param admin Address that triggered the unpause
+     */
+    event ImplementationUnpaused(
+        string indexed version,
+        address indexed implementation,
+        address indexed admin
+    );
+    
+    /**
+     * @notice Emitted when an implementation is removed from registry
+     * @param version Version string that was removed
+     * @param implementation Address of the removed logic contract
+     * @param admin Address that triggered the removal
+     * @param reason Human-readable reason for removal
+     */
+    event ImplementationRemoved(
+        string indexed version,
+        address indexed implementation,
+        address indexed admin,
+        string reason
+    );
+    
+    /**
+     * @notice Emitted when an implementation is marked as deprecated
+     * @param version Version string that was deprecated
+     * @param implementation Address of the deprecated logic contract
+     * @param admin Address that triggered the deprecation
+     * @param reason Human-readable reason for deprecation
+     */
+    event ImplementationDeprecated(
+        string indexed version,
+        address indexed implementation,
+        address indexed admin,
+        string reason
+    );
+    
+    /**
+     * @notice Emitted when privileged admin address changes
+     * @param oldAdmin Previous admin address
+     * @param newAdmin New admin address
+     */
+    event PrivilegedAdminChanged(address indexed oldAdmin, address indexed newAdmin);
+    
+    /**
+     * @notice Emitted when the latest recommended version changes
+     * @param oldVersion Previous latest version
+     * @param newVersion New latest version
+     * @param admin Address that updated the version
+     */
+    event LatestVersionUpdated(
+        string oldVersion,
+        string indexed newVersion,
+        address indexed admin
+    );
 }
