@@ -11,12 +11,12 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ExcessivelySafeCall} from "@excessively-safe-call/ExcessivelySafeCall.sol";
 
-contract SaxenismWalletLogic is 
+contract SaxenismWalletLogic is
     ISaxenismWallet,
     Initializable,
     PausableUpgradeable,
     ReentrancyGuardUpgradeable,
-    EIP712Upgradeable 
+    EIP712Upgradeable
 {
     using ECDSA for bytes32;
     using ExcessivelySafeCall for address;
@@ -26,7 +26,7 @@ contract SaxenismWalletLogic is
     //////////////////
 
     address[] private _owners;
-    
+
     mapping(address => bool) private _isOwner;
 
     uint256 private _threshold;
@@ -57,16 +57,11 @@ contract SaxenismWalletLogic is
 
     uint16 private constant MAX_RETURN_COPY = 128; //or whatever size you want
 
-
     ////////////////////////////////////////////////////
     // Initialization - Two phase self-administration
     ////////////////////////////////////////////////////
 
-    function initialize(
-        address[] calldata owners,
-        uint256 threshold,
-        string calldata version
-    ) external initializer {
+    function initialize(address[] calldata owners, uint256 threshold, string calldata version) external initializer {
         __Pausable_init();
         __ReentrancyGuard_init();
         __EIP712_init("SaxenismWallet", "1");
@@ -78,7 +73,7 @@ contract SaxenismWalletLogic is
         _factory = msg.sender;
 
         _version = version;
-        
+
         _setOwners(owners, threshold);
 
         _nonce = 0;
@@ -86,9 +81,7 @@ contract SaxenismWalletLogic is
         // CRITICAL STEP: Transfer proxy admin from factory to wallet itself
         // This enables true self-administration while maintaining technical feasibility
         // Using low-level call since changeAdmin is not in the interface
-        (bool success, ) = address(this).call(
-            abi.encodeWithSignature("changeAdmin(address)", address(this))
-        );
+        (bool success,) = address(this).call(abi.encodeWithSignature("changeAdmin(address)", address(this)));
         require(success, "SaxenismWalletLogic: admin transfer failed");
 
         emit OwnersChanged(new address[](0), owners, 0, threshold);
@@ -99,10 +92,10 @@ contract SaxenismWalletLogic is
     ///////////////////////////
 
     function executeTransaction(
-        address target, 
-        uint256 value, 
-        bytes calldata data, 
-        Operation operation, 
+        address target,
+        uint256 value,
+        bytes calldata data,
+        Operation operation,
         bytes[] calldata signatures
     ) external override nonReentrant whenNotPaused returns (bool success, bytes memory returnData) {
         Transaction memory txn = Transaction({
@@ -131,12 +124,7 @@ contract SaxenismWalletLogic is
 
         // Execute the transaction
         if (operation == Operation.CALL) {
-            (success, returnData) = target.excessivelySafeCall(
-                EXTERNAL_CALL_GAS_LIMIT,
-                value,
-                MAX_RETURN_COPY,
-                data
-            );
+            (success, returnData) = target.excessivelySafeCall(EXTERNAL_CALL_GAS_LIMIT, value, MAX_RETURN_COPY, data);
         } else {
             // ExcessivelySafeCall doesn't support delegatecall
             // Raw delegatecall is safe here since we only allow trusted delegate addresses
@@ -152,34 +140,31 @@ contract SaxenismWalletLogic is
     // Security Critical Operations (called via executeTransaction)
     ///////////////////////////////////////////////////////////////////
 
-    function changeOwners(
-        address[] calldata newOwners,
-        uint256 newThreshold
-    ) external override {
-       require(msg.sender == address(this), "SaxenismWalletLogic: only via executeTransaction");
-        
+    function changeOwners(address[] calldata newOwners, uint256 newThreshold) external override {
+        require(msg.sender == address(this), "SaxenismWalletLogic: only via executeTransaction");
+
         // Validate new configuration
         _validateOwnerConfig(newOwners, newThreshold);
-        
+
         // Store old values for event
         address[] memory oldOwners = _owners;
         uint256 oldThreshold = _threshold;
-        
+
         // Clear existing owners
         for (uint256 i = 0; i < _owners.length; i++) {
             _isOwner[_owners[i]] = false;
         }
-        
+
         // Set new owners
         _setOwners(newOwners, newThreshold);
-        
+
         emit OwnersChanged(oldOwners, newOwners, oldThreshold, newThreshold);
     }
 
     function setTrustedDelegate(address delegate, bool trusted) external override {
         require(msg.sender == address(this), "SaxenismWallet: only via executeTransaction");
         require(delegate != address(0), "SaxenismWallet: invalid delegate");
-        
+
         _trustedDelegates[delegate] = trusted;
         emit TrustedDelegateChanged(delegate, trusted);
     }
@@ -187,61 +172,56 @@ contract SaxenismWalletLogic is
     function setWithdrawalRecipient(address recipient, bool whitelisted) external override {
         require(msg.sender == address(this), "SaxenismWallet: only via executeTransaction");
         require(recipient != address(0), "SaxenismWallet: invalid recipient");
-        
+
         _withdrawalRecipients[recipient] = whitelisted;
         emit WithdrawalRecipientChanged(recipient, whitelisted);
     }
 
-    function upgradeImplementation(
-        address newImplementation,
-        string calldata newVersion
-    ) external override {
+    function upgradeImplementation(address newImplementation, string calldata newVersion) external override {
         require(msg.sender == address(this), "SaxenismWallet: only via executeTransaction");
         require(newImplementation != address(0), "SaxenismWallet: invalid implementation");
-        
+
         // Validate implementation via factory
         require(
             ISaxenismWalletFactory(_factory).isImplementationUsable(newVersion),
             "SaxenismWallet: implementation not usable"
         );
-        
+
         address oldImplementation = _getImplementation();
-        
+
         // Perform upgrade - wallet is its own proxy admin
         // Calling upgrade on the proxy.
-        (bool ok, ) = address(this).call(
-            abi.encodeWithSignature("upgradeTo(address)", newImplementation)
-        );
+        (bool ok,) = address(this).call(abi.encodeWithSignature("upgradeTo(address)", newImplementation));
         require(ok, "SaxenismWallet: upgrade failed");
 
         // Update version
         _version = newVersion;
-        
+
         emit ImplementationUpgraded(oldImplementation, newImplementation, newVersion);
     }
 
     function withdrawAllFunds(address recipient) external override {
         require(msg.sender == address(this), "SaxenismWallet: only via executeTransaction");
         require(_withdrawalRecipients[recipient], "SaxenismWallet: recipient not whitelisted");
-        
+
         uint256 balance = address(this).balance;
         require(balance > 0, "SaxenismWallet: no funds to withdraw");
-        
+
         // Transfer all ETH to recipient
-        (bool success, ) = recipient.call{value: balance}("");
+        (bool success,) = recipient.call{value: balance}("");
         require(success, "SaxenismWallet: transfer failed");
-        
+
         emit EmergencyWithdrawal(recipient, balance);
-        
+
         // TODO: Add token withdrawal logic for ERC20/ERC721/ERC1155 tokens
     }
 
     function cancelNonce(uint256 nonceToCancel) external override {
         require(msg.sender == address(this), "SaxenismWallet: only via executeTransaction");
         require(nonceToCancel >= _nonce, "SaxenismWallet: cannot cancel past nonce");
-        
+
         _nonce = nonceToCancel + 1;
-        
+
         emit NonceCancelled(nonceToCancel, _nonce);
     }
 
@@ -256,31 +236,31 @@ contract SaxenismWalletLogic is
     function getThreshold() external view override returns (uint256) {
         return _threshold;
     }
-    
+
     function getNonce() external view override returns (uint256) {
         return _nonce;
     }
-    
+
     function isTrustedDelegate(address delegate) external view override returns (bool) {
         return _trustedDelegates[delegate];
     }
-    
+
     function isWithdrawalRecipient(address recipient) external view override returns (bool) {
         return _withdrawalRecipients[recipient];
     }
-    
+
     function getImplementation() external view override returns (address) {
         return _getImplementation();
     }
-    
+
     function getVersion() external view override returns (string memory) {
         return _version;
     }
-    
+
     function getTransactionHash(Transaction calldata transaction) external view override returns (bytes32) {
         return _getTransactionHash(transaction);
     }
-    
+
     function verifySignatures(bytes32 txHash, bytes[] calldata signatures) external view override returns (bool) {
         return _verifySignatures(txHash, signatures);
     }
@@ -294,11 +274,11 @@ contract SaxenismWalletLogic is
         require(owners.length <= MAX_OWNERS, "SaxenismWallet: too many owners");
         require(threshold > 0, "SaxenismWallet: threshold cannot be zero");
         require(threshold <= owners.length, "SaxenismWallet: threshold exceeds owner count");
-        
+
         // Check for duplicate owners and zero addresses
         for (uint256 i = 0; i < owners.length; i++) {
             require(owners[i] != address(0), "SaxenismWallet: invalid owner address");
-            
+
             // Check for duplicates
             for (uint256 j = i + 1; j < owners.length; j++) {
                 require(owners[i] != owners[j], "SaxenismWallet: duplicate owner");
@@ -308,50 +288,54 @@ contract SaxenismWalletLogic is
 
     function _setOwners(address[] calldata owners, uint256 threshold) internal {
         delete _owners;
-        
+
         for (uint256 i = 0; i < owners.length; i++) {
             _owners.push(owners[i]);
             _isOwner[owners[i]] = true;
         }
-        
+
         _threshold = threshold;
     }
 
     function _getTransactionHash(Transaction memory transaction) internal view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(
-            TRANSACTION_TYPEHASH,
-            transaction.target,
-            transaction.value,
-            keccak256(transaction.data),
-            transaction.operation,
-            transaction.nonce,
-            transaction.chainId,
-            transaction.verifyingContract
-        )));
+        return _hashTypedDataV4(
+            keccak256(
+                abi.encode(
+                    TRANSACTION_TYPEHASH,
+                    transaction.target,
+                    transaction.value,
+                    keccak256(transaction.data),
+                    transaction.operation,
+                    transaction.nonce,
+                    transaction.chainId,
+                    transaction.verifyingContract
+                )
+            )
+        );
     }
 
     function _verifySignatures(bytes32 txHash, bytes[] calldata signatures) internal view returns (bool) {
         require(signatures.length >= _threshold, "SaxenismWallet: insufficient signatures");
         require(signatures.length <= _owners.length, "SaxenismWallet: too many signatures");
-        
+
         address lastOwner = address(0);
         uint256 validSignatures = 0;
-        
+
         for (uint256 i = 0; i < signatures.length; i++) {
             address recoveredOwner = txHash.recover(signatures[i]);
-            
+
             // Check if recovered address is an owner
             if (!_isOwner[recoveredOwner]) {
                 continue;
             }
-            
+
             // Ensure signatures are in ascending order (prevents duplicates)
             require(recoveredOwner > lastOwner, "SaxenismWallet: invalid signature order");
             lastOwner = recoveredOwner;
-            
+
             validSignatures++;
         }
-        
+
         return validSignatures >= _threshold;
     }
 
@@ -364,7 +348,7 @@ contract SaxenismWalletLogic is
         }
         return impl;
     }
-        
+
     // Accept ETH deposits
     receive() external payable {}
 
