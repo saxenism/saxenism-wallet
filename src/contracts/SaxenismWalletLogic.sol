@@ -11,6 +11,31 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ExcessivelySafeCall} from "@excessively-safe-call/ExcessivelySafeCall.sol";
 
+/**
+ * @title SaxenismWalletLogic
+ * @notice Implementation contract for Saxenism multisig wallets
+ * @dev This is the logic contract that all wallet proxies delegatecall to.
+ *      Implements enterprise-grade multisig functionality with:
+ *      - k-of-n signature validation using battle-tested ecrecover
+ *      - EIP-712 structured data signing with replay protection
+ *      - Self-administration (wallet controls its own upgrades)
+ *      - Emergency controls and user sovereignty mechanisms
+ *      - Trusted delegate validation for safe proxy interactions
+ *
+ * Security Architecture:
+ * - All critical operations flow through executeTransaction (unified security model)
+ * - Per-wallet nonce prevents replay attacks across all operations
+ * - ExcessivelySafeCall prevents returnbomb attacks
+ * - Trusted delegate whitelist prevents dangerous proxy interactions
+ * - Emergency withdrawal preserves user sovereignty
+ *
+ * Upgrade Philosophy:
+ * - Each wallet is self-administered (proxy admin = wallet address)
+ * - Upgrades require k-of-n governance through executeTransaction
+ * - Users can exit via withdrawAllFunds if disagreeing with protocol changes
+ *
+ * @author saxenism
+ */
 contract SaxenismWalletLogic is
     ISaxenismWallet,
     Initializable,
@@ -25,42 +50,68 @@ contract SaxenismWalletLogic is
     // Storage
     //////////////////
 
+    /// @notice Array of wallet owner addresses
     address[] private _owners;
 
+    /// @notice Mapping for O(1) owner validation
     mapping(address => bool) private _isOwner;
 
+    /// @notice Number of signatures required for transaction execution
     uint256 private _threshold;
 
+    /// @notice Current transaction nonce (increments on each execution)
     uint256 private _nonce;
 
+    /// @notice Mapping of trusted delegate contracts for safe DELEGATECALL operations
     mapping(address => bool) private _trustedDelegates;
 
+    /// @notice Mapping of addresses whitelisted for emergency withdrawals
     mapping(address => bool) private _withdrawalRecipients;
 
+    /// @notice Factory contract address for implementation validation
     address private _factory;
 
+    /// @notice Current implementation version string
     string private _version;
 
     //////////////////////////////
     // Constants and Immutables
     //////////////////////////////
 
+    /// @notice EIP-712 typehash for Transaction struct
     bytes32 private constant TRANSACTION_TYPEHASH = keccak256(
         "Transaction(address target, uint256 value, bytes data, uint8 operation,uint256 nonce,uint256 chainId,address verifyingContract)"
     );
 
-    // Kinda arbitrary. No super-specific reason for chosing 50
+    /// @notice Maximum number of owners to prevent gas issues
     uint256 private constant MAX_OWNERS = 50;
 
-    // Gas limit for external calls to prevent griefing
+    /// @notice Gas limit for external calls to prevent griefing
     uint256 private constant EXTERNAL_CALL_GAS_LIMIT = 200_000;
 
-    uint16 private constant MAX_RETURN_COPY = 128; //or whatever size you want
+    /// @notice Maximum bytes to copy from return data to prevent returnbomb attacks
+    uint16 private constant MAX_RETURN_DATA_COPY = 256; //or whatever size you want
 
     ////////////////////////////////////////////////////
     // Initialization - Two phase self-administration
     ////////////////////////////////////////////////////
 
+    /**
+     * @notice Initialize wallet with two-phase self-administration
+     * @dev This function is called during proxy deployment and performs the critical
+     *      admin transfer that enables wallet self-sovereignty:
+     *
+     *      1. Standard wallet initialization (owners, threshold, version)
+     *      2. CRITICAL: Transfer proxy admin from factory to wallet itself
+     *      3. Wallet becomes self-administered for all future upgrades
+     *
+     *      This ensures all upgrades flow through executeTransaction (k-of-n governance)
+     *      while maintaining technical compatibility with OpenZeppelin proxy patterns.
+     *
+     * @param owners Initial owner addresses (must be unique, non-zero)
+     * @param threshold Signature threshold (must be > 0 and <= owners.length)
+     * @param version Implementation version string
+     */
     function initialize(address[] calldata owners, uint256 threshold, string calldata version) external initializer {
         __Pausable_init();
         __ReentrancyGuard_init();
@@ -91,6 +142,18 @@ contract SaxenismWalletLogic is
     // Core Execution Engine
     ///////////////////////////
 
+    /**
+     * @notice Execute a transaction with k-of-n signature validation
+     * @dev This is the ONLY entry point for all security-critical operations.
+     *      Provides unified security validation for:
+     *      - Regular transactions (transfers, contract calls)
+     *      - Ownership changes (changeOwners)
+     *      - Emergency actions (withdrawAllFunds)
+     *      - Upgrade operations (upgradeImplementation)
+     *      - Configuration changes (trusted delegates, withdrawal whitelist)
+     *
+     * @inheritdoc ISaxenismWallet
+     */
     function executeTransaction(
         address target,
         uint256 value,
@@ -124,7 +187,8 @@ contract SaxenismWalletLogic is
 
         // Execute the transaction
         if (operation == Operation.CALL) {
-            (success, returnData) = target.excessivelySafeCall(EXTERNAL_CALL_GAS_LIMIT, value, MAX_RETURN_COPY, data);
+            (success, returnData) =
+                target.excessivelySafeCall(EXTERNAL_CALL_GAS_LIMIT, value, MAX_RETURN_DATA_COPY, data);
         } else {
             // ExcessivelySafeCall doesn't support delegatecall
             // Raw delegatecall is safe here since we only allow trusted delegate addresses
@@ -140,6 +204,11 @@ contract SaxenismWalletLogic is
     // Security Critical Operations (called via executeTransaction)
     ///////////////////////////////////////////////////////////////////
 
+    /**
+     * @notice Change wallet ownership structure
+     * @dev SECURITY CRITICAL: Only callable via executeTransaction with k-of-n signatures
+     * @inheritdoc ISaxenismWallet
+     */
     function changeOwners(address[] calldata newOwners, uint256 newThreshold) external override {
         require(msg.sender == address(this), "SaxenismWalletLogic: only via executeTransaction");
 
@@ -161,6 +230,10 @@ contract SaxenismWalletLogic is
         emit OwnersChanged(oldOwners, newOwners, oldThreshold, newThreshold);
     }
 
+    /**
+     * @notice Add/remove trusted delegate for safe DELEGATECALL operations
+     * @inheritdoc ISaxenismWallet
+     */
     function setTrustedDelegate(address delegate, bool trusted) external override {
         require(msg.sender == address(this), "SaxenismWallet: only via executeTransaction");
         require(delegate != address(0), "SaxenismWallet: invalid delegate");
@@ -169,6 +242,10 @@ contract SaxenismWalletLogic is
         emit TrustedDelegateChanged(delegate, trusted);
     }
 
+    /**
+     * @notice Add/remove address from emergency withdrawal whitelist
+     * @inheritdoc ISaxenismWallet
+     */
     function setWithdrawalRecipient(address recipient, bool whitelisted) external override {
         require(msg.sender == address(this), "SaxenismWallet: only via executeTransaction");
         require(recipient != address(0), "SaxenismWallet: invalid recipient");
@@ -177,6 +254,10 @@ contract SaxenismWalletLogic is
         emit WithdrawalRecipientChanged(recipient, whitelisted);
     }
 
+    /**
+     * @notice Upgrade wallet implementation (logic contract)
+     * @inheritdoc ISaxenismWallet
+     */
     function upgradeImplementation(address newImplementation, string calldata newVersion) external override {
         require(msg.sender == address(this), "SaxenismWallet: only via executeTransaction");
         require(newImplementation != address(0), "SaxenismWallet: invalid implementation");
@@ -200,6 +281,10 @@ contract SaxenismWalletLogic is
         emit ImplementationUpgraded(oldImplementation, newImplementation, newVersion);
     }
 
+    /**
+     * @notice Emergency withdrawal of all funds to whitelisted address
+     * @inheritdoc ISaxenismWallet
+     */
     function withdrawAllFunds(address recipient) external override {
         require(msg.sender == address(this), "SaxenismWallet: only via executeTransaction");
         require(_withdrawalRecipients[recipient], "SaxenismWallet: recipient not whitelisted");
@@ -216,6 +301,10 @@ contract SaxenismWalletLogic is
         // TODO: Add token withdrawal logic for ERC20/ERC721/ERC1155 tokens
     }
 
+    /**
+     * @notice Cancel a specific nonce for governance conflict resolution
+     * @inheritdoc ISaxenismWallet
+     */
     function cancelNonce(uint256 nonceToCancel) external override {
         require(msg.sender == address(this), "SaxenismWallet: only via executeTransaction");
         require(nonceToCancel >= _nonce, "SaxenismWallet: cannot cancel past nonce");
@@ -229,38 +318,74 @@ contract SaxenismWalletLogic is
     // View Functions
     /////////////////////
 
+    /**
+     * @notice Get current wallet owners
+     * @inheritdoc ISaxenismWallet
+     */
     function getOwners() external view override returns (address[] memory) {
         return _owners;
     }
 
+    /**
+     * @notice Get current signature threshold
+     * @inheritdoc ISaxenismWallet
+     */
     function getThreshold() external view override returns (uint256) {
         return _threshold;
     }
 
+    /**
+     * @notice Get current transaction nonce
+     * @inheritdoc ISaxenismWallet
+     */
     function getNonce() external view override returns (uint256) {
         return _nonce;
     }
 
+    /**
+     * @notice Check if address is a trusted delegate
+     * @inheritdoc ISaxenismWallet
+     */
     function isTrustedDelegate(address delegate) external view override returns (bool) {
         return _trustedDelegates[delegate];
     }
 
+    /**
+     * @notice Check if address is whitelisted for emergency withdrawals
+     * @inheritdoc ISaxenismWallet
+     */
     function isWithdrawalRecipient(address recipient) external view override returns (bool) {
         return _withdrawalRecipients[recipient];
     }
 
+    /**
+     * @notice Get current implementation address (logic contract)
+     * @inheritdoc ISaxenismWallet
+     */
     function getImplementation() external view override returns (address) {
         return _getImplementation();
     }
 
+    /**
+     * @notice Get implementation version string
+     * @inheritdoc ISaxenismWallet
+     */
     function getVersion() external view override returns (string memory) {
         return _version;
     }
 
+    /**
+     * @notice Generate EIP-712 transaction hash for signing
+     * @inheritdoc ISaxenismWallet
+     */
     function getTransactionHash(Transaction calldata transaction) external view override returns (bytes32) {
         return _getTransactionHash(transaction);
     }
 
+    /**
+     * @notice Verify if signatures are valid for a transaction
+     * @inheritdoc ISaxenismWallet
+     */
     function verifySignatures(bytes32 txHash, bytes[] calldata signatures) external view override returns (bool) {
         return _verifySignatures(txHash, signatures);
     }
@@ -269,6 +394,11 @@ contract SaxenismWalletLogic is
     // Internal Functions
     /////////////////////////
 
+    /**
+     * @notice Internal function to validate owner configuration
+     * @param owners Array of owner addresses
+     * @param threshold Signature threshold
+     */
     function _validateOwnerConfig(address[] calldata owners, uint256 threshold) internal pure {
         require(owners.length > 0, "SaxenismWallet: no owners provided");
         require(owners.length <= MAX_OWNERS, "SaxenismWallet: too many owners");
@@ -286,6 +416,11 @@ contract SaxenismWalletLogic is
         }
     }
 
+    /**
+     * @notice Internal function to set owners and threshold
+     * @param owners Array of owner addresses
+     * @param threshold Signature threshold
+     */
     function _setOwners(address[] calldata owners, uint256 threshold) internal {
         delete _owners;
 
@@ -297,6 +432,11 @@ contract SaxenismWalletLogic is
         _threshold = threshold;
     }
 
+    /**
+     * @notice Internal function to generate EIP-712 transaction hash
+     * @param transaction Transaction struct to hash
+     * @return EIP-712 compliant hash
+     */
     function _getTransactionHash(Transaction memory transaction) internal view returns (bytes32) {
         return _hashTypedDataV4(
             keccak256(
@@ -314,6 +454,12 @@ contract SaxenismWalletLogic is
         );
     }
 
+    /**
+     * @notice Internal function to verify k-of-n signatures
+     * @param txHash EIP-712 transaction hash
+     * @param signatures Array of signatures to verify
+     * @return True if signatures meet threshold requirement
+     */
     function _verifySignatures(bytes32 txHash, bytes[] calldata signatures) internal view returns (bool) {
         require(signatures.length >= _threshold, "SaxenismWallet: insufficient signatures");
         require(signatures.length <= _owners.length, "SaxenismWallet: too many signatures");
@@ -339,6 +485,10 @@ contract SaxenismWalletLogic is
         return validSignatures >= _threshold;
     }
 
+    /**
+     * @notice Internal function to get current implementation address
+     * @return Implementation address from proxy storage
+     */
     function _getImplementation() internal view returns (address) {
         // Implementation address is stored in EIP-1967 storage slot
         bytes32 slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
@@ -350,6 +500,9 @@ contract SaxenismWalletLogic is
     }
 
     // Accept ETH deposits
+    /**
+     * @notice Receive function to accept ETH deposits
+     */
     receive() external payable {}
 
     // Storage gap for future upgrades

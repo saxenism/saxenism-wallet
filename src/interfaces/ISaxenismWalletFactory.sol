@@ -9,7 +9,7 @@ pragma solidity 0.8.27;
  *      - Managing implementation versions and lifecycle
  *      - Emergency protocol controls (pause/remove implementations)
  *      - Privileged administrative functions
- * 
+ *
  * Security Design Principles:
  * - Privileged admin controls implementation lifecycle (emergency response)
  * - User autonomy preserved (each wallet chooses upgrade timing)
@@ -64,13 +64,13 @@ interface ISaxenismWalletFactory {
      * @notice Deploy a new Saxenism wallet instance
      * @dev Uses CREATE2 for deterministic addresses across chains.
      *      Deploys a TransparentUpgradeableProxy pointing to the specified implementation.
-     *      
+     *
      * Security validations:
      * - Implementation version must exist and be active (not paused/removed/deprecated)
      * - Owners array must be valid (non-empty, unique, non-zero addresses)
      * - Threshold must be valid (> 0 and <= owners.length)
      * - Salt must generate a currently unused address
-     * 
+     *
      * @param owners Initial owner addresses (must be unique, non-zero)
      * @param threshold Initial signature threshold (must be > 0 and <= owners.length)
      * @param version Implementation version to use (must be active and usable)
@@ -168,27 +168,27 @@ interface ISaxenismWalletFactory {
      * @return Address of privileged admin
      */
     function getPrivilegedAdmin() external view returns (address);
-    
+
     /**
      * @notice Get pending privileged admin address (during transfer)
      * @return Address of pending admin (address(0) if no transfer in progress)
      */
     function getPendingPrivilegedAdmin() external view returns (address);
-    
+
     /**
      * @notice Get implementation info for a specific version
      * @param version Version string to query
      * @return info Implementation information struct
      */
     function getImplementationInfo(string calldata version) external view returns (ImplementationInfo memory info);
-    
+
     /**
      * @notice Get implementation address for a specific version
      * @param version Version string to query
      * @return implementation Address of logic contract (address(0) if not found)
      */
     function getImplementation(string calldata version) external view returns (address implementation);
-    
+
     /**
      * @notice Check if an implementation version is currently active and deployable
      * @dev Checks if version exists, is active, and not paused (for NEW deployments)
@@ -196,7 +196,7 @@ interface ISaxenismWalletFactory {
      * @return True if version exists, is active, and not paused
      */
     function isImplementationActive(string calldata version) external view returns (bool);
-    
+
     /**
      * @notice Check if an implementation version is safe for wallet upgrades
      * @dev Checks if version exists, is active, not paused, and not deprecated
@@ -206,38 +206,38 @@ interface ISaxenismWalletFactory {
      * @return True if version is safe for upgrades (active, not paused, not deprecated)
      */
     function isImplementationUsable(string calldata version) external view returns (bool);
-    
+
     /**
      * @notice Get the latest recommended implementation version
      * @return Latest version string
      */
     function getLatestVersion() external view returns (string memory);
-    
+
     /**
      * @notice Get all registered implementation versions
      * @return Array of version strings
      */
     function getAllVersions() external view returns (string[] memory);
-    
+
     /**
      * @notice Get all active (deployable) implementation versions
      * @return Array of active version strings
      */
     function getActiveVersions() external view returns (string[] memory);
-    
+
     /**
      * @notice Check if a wallet address was deployed by this factory
      * @param wallet Address to check
      * @return True if wallet was deployed by this factory
      */
     function isWalletDeployed(address wallet) external view returns (bool);
-    
+
     /**
      * @notice Get total number of wallets deployed by this factory
      * @return Count of deployed wallets
      */
     function getWalletCount() external view returns (uint256);
-    
+
     /**
      * @notice Get wallet address by deployment index
      * @param index Index of deployment (0 to getWalletCount() - 1)

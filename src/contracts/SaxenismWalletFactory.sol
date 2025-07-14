@@ -8,7 +8,6 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 
-
 /**
  * @title SaxenismWalletFactory
  * @notice Protocol-level factory for deploying and managing Saxenism multisig wallets
@@ -18,15 +17,15 @@ import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
  *      - Versioned implementation management with lifecycle controls
  *      - Emergency response capabilities (pause/deprecate/remove)
  *      - Privileged admin controls with 2-step transfer security
- * 
+ *
  * Standard Self-Administration Architecture:
  * Each wallet is deployed as a TransparentUpgradeableProxy using a simple two-phase approach:
  * 1. Factory deploys proxy with itself as initial admin
  * 2. Wallet's initialize() function transfers admin to wallet itself (address(this))
  * 3. All future upgrades flow through wallet's executeTransaction() (k-of-n governance)
- * 
+ *
  * This achieves true user sovereignty through proven, boring patterns.
- * 
+ *
  * @author saxenism
  */
 contract SaxenismWalletFactory is ISaxenismWalletFactory, Ownable2Step {
@@ -75,11 +74,11 @@ contract SaxenismWalletFactory is ISaxenismWalletFactory, Ownable2Step {
     /**
      * @notice Deploy a new Saxenism wallet instance with two-phase self-administration
      * @dev Simple and secure approach using standard proxy patterns:
-     *      
+     *
      *      1. Deploy TransparentUpgradeableProxy with factory as initial admin
      *      2. During initialize(), wallet calls changeAdmin(address(this)) to become self-administered
      *      3. All future upgrades flow through wallet's executeTransaction (k-of-n governance)
-     * 
+     *
      * @inheritdoc ISaxenismWalletFactory
      */
     function createWallet(address[] calldata owners, uint256 threshold, string calldata version, bytes32 salt)
@@ -212,7 +211,6 @@ contract SaxenismWalletFactory is ISaxenismWalletFactory, Ownable2Step {
      * @notice Mark an implementation version as deprecated (unsafe for upgrades)
      * @inheritdoc ISaxenismWalletFactory
      */
-
     function deprecateImplementation(string calldata version, string calldata reason) external override onlyOwner {
         require(_implementations[version].implementation != address(0), "SaxenismWalletFactory: version not found");
         require(!_implementations[version].isDeprecated, "SaxenismWalletFactory: already deprecated");
@@ -266,7 +264,7 @@ contract SaxenismWalletFactory is ISaxenismWalletFactory, Ownable2Step {
     function getPrivilegedAdmin() external view override returns (address) {
         return owner();
     }
-    
+
     /**
      * @notice Get pending privileged admin address
      * @inheritdoc ISaxenismWalletFactory
@@ -274,15 +272,20 @@ contract SaxenismWalletFactory is ISaxenismWalletFactory, Ownable2Step {
     function getPendingPrivilegedAdmin() external view override returns (address) {
         return pendingOwner();
     }
-    
+
     /**
      * @notice Get implementation info for a specific version
      * @inheritdoc ISaxenismWalletFactory
      */
-    function getImplementationInfo(string calldata version) external view override returns (ImplementationInfo memory) {
+    function getImplementationInfo(string calldata version)
+        external
+        view
+        override
+        returns (ImplementationInfo memory)
+    {
         return _implementations[version];
     }
-    
+
     /**
      * @notice Get implementation address for a specific version
      * @inheritdoc ISaxenismWalletFactory
@@ -290,7 +293,7 @@ contract SaxenismWalletFactory is ISaxenismWalletFactory, Ownable2Step {
     function getImplementation(string calldata version) external view override returns (address) {
         return _implementations[version].implementation;
     }
-    
+
     /**
      * @notice Check if an implementation version is currently active and deployable
      * @inheritdoc ISaxenismWalletFactory
@@ -298,7 +301,7 @@ contract SaxenismWalletFactory is ISaxenismWalletFactory, Ownable2Step {
     function isImplementationActive(string calldata version) external view override returns (bool) {
         return _isImplementationActive(version);
     }
-    
+
     /**
      * @notice Check if an implementation version is safe for wallet upgrades
      * @inheritdoc ISaxenismWalletFactory
@@ -306,7 +309,7 @@ contract SaxenismWalletFactory is ISaxenismWalletFactory, Ownable2Step {
     function isImplementationUsable(string calldata version) external view override returns (bool) {
         return _isImplementationUsable(version);
     }
-    
+
     /**
      * @notice Get the latest recommended implementation version
      * @inheritdoc ISaxenismWalletFactory
@@ -314,7 +317,7 @@ contract SaxenismWalletFactory is ISaxenismWalletFactory, Ownable2Step {
     function getLatestVersion() external view override returns (string memory) {
         return _latestVersion;
     }
-    
+
     /**
      * @notice Get all registered implementation versions
      * @inheritdoc ISaxenismWalletFactory
@@ -322,35 +325,35 @@ contract SaxenismWalletFactory is ISaxenismWalletFactory, Ownable2Step {
     function getAllVersions() external view override returns (string[] memory) {
         return _allVersions;
     }
-    
+
     /**
      * @notice Get all active implementation versions
      * @inheritdoc ISaxenismWalletFactory
      */
     function getActiveVersions() external view override returns (string[] memory) {
         uint256 activeCount = 0;
-        
+
         // Count active versions
         for (uint256 i = 0; i < _allVersions.length; i++) {
             if (_isImplementationActive(_allVersions[i])) {
                 activeCount++;
             }
         }
-        
+
         // Build active versions array
         string[] memory activeVersions = new string[](activeCount);
         uint256 currentIndex = 0;
-        
+
         for (uint256 i = 0; i < _allVersions.length; i++) {
             if (_isImplementationActive(_allVersions[i])) {
                 activeVersions[currentIndex] = _allVersions[i];
                 currentIndex++;
             }
         }
-        
+
         return activeVersions;
     }
-    
+
     /**
      * @notice Check if a wallet address was deployed by this factory
      * @inheritdoc ISaxenismWalletFactory
@@ -358,7 +361,7 @@ contract SaxenismWalletFactory is ISaxenismWalletFactory, Ownable2Step {
     function isWalletDeployed(address wallet) external view override returns (bool) {
         return _isWalletDeployed[wallet];
     }
-    
+
     /**
      * @notice Get total number of wallets deployed by this factory
      * @inheritdoc ISaxenismWalletFactory
@@ -366,7 +369,7 @@ contract SaxenismWalletFactory is ISaxenismWalletFactory, Ownable2Step {
     function getWalletCount() external view override returns (uint256) {
         return _deployedWallets.length;
     }
-    
+
     /**
      * @notice Get wallet address by deployment index
      * @inheritdoc ISaxenismWalletFactory
@@ -375,11 +378,11 @@ contract SaxenismWalletFactory is ISaxenismWalletFactory, Ownable2Step {
         require(index < _deployedWallets.length, "SaxenismWalletFactory: index out of bounds");
         return _deployedWallets[index];
     }
-    
+
     ////////////////////////////////////////////////////
     // Internal Functions
     ////////////////////////////////////////////////////
-    
+
     /**
      * @notice Internal function to check if implementation is active (for new deployments)
      * @param version Version string to check
@@ -389,7 +392,7 @@ contract SaxenismWalletFactory is ISaxenismWalletFactory, Ownable2Step {
         ImplementationInfo storage info = _implementations[version];
         return info.implementation != address(0) && info.isActive && !info.isPaused;
     }
-    
+
     /**
      * @notice Internal function to check if implementation is usable (for upgrades)
      * @param version Version string to check
@@ -397,12 +400,9 @@ contract SaxenismWalletFactory is ISaxenismWalletFactory, Ownable2Step {
      */
     function _isImplementationUsable(string memory version) internal view returns (bool) {
         ImplementationInfo storage info = _implementations[version];
-        return info.implementation != address(0) && 
-               info.isActive && 
-               !info.isPaused && 
-               !info.isDeprecated;
+        return info.implementation != address(0) && info.isActive && !info.isPaused && !info.isDeprecated;
     }
-    
+
     /**
      * @notice Validate wallet configuration parameters
      * @param owners Array of owner addresses
@@ -412,18 +412,18 @@ contract SaxenismWalletFactory is ISaxenismWalletFactory, Ownable2Step {
         require(owners.length > 0, "SaxenismWalletFactory: no owners provided");
         require(threshold > 0, "SaxenismWalletFactory: threshold cannot be zero");
         require(threshold <= owners.length, "SaxenismWalletFactory: threshold exceeds owner count");
-        
+
         // Check for duplicate owners and zero addresses
         for (uint256 i = 0; i < owners.length; i++) {
             require(owners[i] != address(0), "SaxenismWalletFactory: invalid owner address");
-            
+
             // Check for duplicates
             for (uint256 j = i + 1; j < owners.length; j++) {
                 require(owners[i] != owners[j], "SaxenismWalletFactory: duplicate owner");
             }
         }
     }
-    
+
     /**
      * @notice Remove a version from the versions array
      * @param version Version string to remove
