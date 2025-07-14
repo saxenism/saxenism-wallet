@@ -1,0 +1,13 @@
+Things to include in the README:
+
+1. Why exactly the `cancelNonce` function was introduced in our contracts even when we only support only consequential nonce-based execution increment.
+
+
+---
+
+Things to take care of when implementing shit:
+
+1. Make sure that the `address` and `string` are indeed matching when the users (of the wallet) call `upgradeImplementation`.
+2. Make sure that only the latest nonces can be cancelled.
+	+ And cancellation is nothing but executing a txn with that nonce and let it have no effect whatsoever, effectively cancelling it.
+3. 
