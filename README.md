@@ -4,7 +4,9 @@
 
 Saxenism Wallet is a highly secure, CREATE2-deployed, proxy-upgradeable multisig system that gives each wallet **complete autonomy** over its governance, upgradability, and security posture. This wallet treats security and governance as first-class citizens.
 
-Every wallet is a self-governing smart contract with k-of-n EIP-712 signed execution. **This is not a toy wallet.**
+Every wallet is a self-governing smart contract with k-of-n EIP-712 signed execution. 
+
+PS: **This is not an audited wallet. Do not use in production**
 
 ---
 
