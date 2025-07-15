@@ -2,15 +2,16 @@
 
 > *"Not just another multisig. This is a security-first governance primitive for serious teams."*
 
-Saxenism Wallet is a highly secure, CREATE2-deployed, proxy-upgradeable multisig system that gives each wallet **complete autonomy** over its governance, upgradability, and security posture. Built for protocols, DAOs, and teams who treat their governance as **critical infrastructure**.
+Saxenism Wallet is a highly secure, CREATE2-deployed, proxy-upgradeable multisig system that gives each wallet **complete autonomy** over its governance, upgradability, and security posture. This wallet treats security and governance as first-class citizens.
 
 Every wallet is a self-governing smart contract with k-of-n EIP-712 signed execution. **This is not a toy wallet.**
 
 ---
 
-## ✨ Design Highlights
+## Design Highlights
 
-### 🧩 Revolutionary Self-Administration
+### Self-Administration
+
 ```solidity
 // Factory deploys proxy with itself as admin
 new TransparentUpgradeableProxy(implementation, address(this), initData);
@@ -21,21 +22,24 @@ address(this).call(abi.encodeWithSignature("changeAdmin(address)", address(this)
 
 **Result**: Every wallet controls its own upgrade timeline. No forced updates, no protocol-level coercion.
 
-**Technical Note**: Uses EIP-1967 standard storage slots to prevent storage collisions between proxy state and implementation state.
+**Technical Note**: 
+1. Uses EIP-1967 standard storage slots to prevent storage collisions between proxy state and implementation state.
+2. Admin call filtering in the TPP contracts used prevents function collision.
 
-### 🛡️ Advanced Security Engineering
+### Security Building Blocks
 
 | Security Layer | Implementation | Attack Prevention |
 |---|---|---|
 | **Signature Verification** | EIP-712 + ecrecover | Replay attacks, signature malleability |
 | **External Calls** | ExcessivelySafeCall | Returnbomb attacks, gas griefing |
-| **Proxy Interactions** | Trusted delegate whitelist | Malicious delegatecall exploitation |
+| **External Delegatecalls** | Whitelisted Addresses Only | Untrusted delegate calls prevented |
 | **Cross-Chain** | Explicit chainId + verifyingContract | Cross-chain replay attacks |
-| **Version Control** | Factory deprecation system | Dangerous downgrade attacks |
+| **Version Control** | Factory deprecation system | Dangerous downgrade prevented |
 
-### 🗳️ Governance Sophistication
+### Layered-Solutions for Governance
 
 **Democratic Conflict Resolution**: When multiple valid transactions compete for the same nonce:
+
 ```solidity
 // Two factions sign competing proposals for nonce 7
 // Cross-faction coalition signs cancelNonce(7) 
@@ -44,14 +48,17 @@ address(this).call(abi.encodeWithSignature("changeAdmin(address)", address(this)
 
 **Benefits**: Privacy-preserving rejection, democratic process, no off-chain coordination complexity.
 
-### 🔄 CREATE2 Deterministic Deployment
+**Fully autonomous upgrades**: Wallets upgrade via k-of-n agreement and only when they want to and only to the versions they want to. No broad protocol-level broad directives that HAVE to be followed (apart from critical hacks being discovered in the implementation contract)
+
+### CREATE2 Deterministic Deployment
+
 - **Same wallet address** across all chains
 - **Cross-chain governance consistency** 
-- **Predictable address calculation** for institutional planning
+- **Predictable address calculation** for planning
 
 ---
 
-## 📦 Architecture
+## Architecture
 
 ```
 SaxenismWalletFactory.sol
@@ -74,7 +81,7 @@ TransparentUpgradeableProxy (per wallet)
 └─ Battle-tested OpenZeppelin proxy security
 ```
 
-### 🔐 Unified Security Model
+### The Security Model
 
 **Single Entry Point**: All security-critical operations flow through `executeTransaction`:
 
@@ -89,7 +96,7 @@ TransparentUpgradeableProxy (per wallet)
 
 ---
 
-## 🔬 Signature Verification
+## Signature Verification
 
 Battle-tested ECDSA with comprehensive validation:
 
@@ -120,9 +127,11 @@ require(_isOwner[recovered]);    // Must be current owner
 
 **Wallet Compatibility Caveat**: ECDSA will likely remain the default signature scheme due to widespread wallet compatibility (e.g., MetaMask cannot generate BLS signatures). Alternative schemes would require specialized tooling and may limit user adoption.
 
+**Long Term Solutions**: As quantum computing matures, we must look at quantum safe, lattice-cryptography based signature schemes that are already in use in 
+
 ---
 
-## 🚨 Emergency & Sovereignty Features
+## Emergency & Sovereignty Features
 
 | Feature | Purpose | Security Model |
 |---|---|---|
@@ -142,11 +151,12 @@ require(_isOwner[recovered]);    // Must be current owner
 
 ---
 
-## 🔍 Operational Security Framework
+## OpSec Framework: Monitoring
 
 ### Proactive Threat Detection
 
 **High-Value Target Monitoring**:
+
 ```
 Track Top 20 Wallets by USD Value →
 Monitor for Rapid/Large Balance Decreases →
@@ -154,7 +164,7 @@ Early Warning System for Protocol Exploits →
 Emergency Response Activation
 ```
 
-**Rationale**: Attackers target high-value wallets first. Early detection provides critical response time.
+**Rationale**: Attackers target high-value wallets first. Early detection provides critical head-start in response time for an upcoming hack.
 
 ### Monitoring Architecture Redundancy
 
@@ -169,6 +179,10 @@ Backup Monitor (Different Tech Stack)
 ├─ Independent alerting channels
 └─ Platform limitation resilience (e.g., OZ Defender can't detect L2 function calls)
 ```
+
+### Monitor Trusted Delegatecall Addresses
+
+For high-value wallets and wallets that want to, we can setup monitoring for their trusted "delegatecall" addresses to ensure that it does not have any dangerous combination of `delegatecall` and `selfdestruct` as that can leave the wallet unusable.
 
 ### Multi-Layer Incident Response
 
@@ -191,7 +205,7 @@ Backup Monitor (Different Tech Stack)
 
 ---
 
-## 🧬 Technical DRI Framework
+## Technical DRI Framework
 
 **Every protocol upgrade requires:**
 
@@ -207,6 +221,7 @@ Backup Monitor (Different Tech Stack)
 - **Formal verification targets**: Mathematical proofs ensure invariants hold under all conditions
 
 **Example Protocol Invariants**:
+
 ```solidity
 invariant balanceConsistency: sum(userBalances) <= address(this).balance;
 invariant thresholdValid: threshold > 0 && threshold <= owners.length;
@@ -215,41 +230,14 @@ invariant nonceProgression: forall tx: nonce[tx] > nonce[previousTx];
 
 ---
 
-## 📁 Repository Structure
-
-```
-src/
-├── contracts/
-│   ├── SaxenismWalletFactory.sol    ← Factory & deployment logic
-│   └── SaxenismWalletLogic.sol      ← Multisig core (proxied)
-├── interfaces/
-│   ├── ISaxenismWallet.sol          ← Wallet interface
-│   └── ISaxenismWalletFactory.sol   ← Factory interface
-script/
-├── deploy/
-│   ├── DeployLocal.s.sol            ← Local deployment
-│   ├── DeployTestnet.s.sol          ← Testnet deployment  
-│   └── DeployMainnet.s.sol          ← Production deployment
-test/
-├── unit/                            ← Isolated component tests
-├── integration/                     ← End-to-end flow tests
-└── invariant/                       ← Formal verification tests
-lib/
-├── openzeppelin-contracts/
-├── openzeppelin-contracts-upgradeable/
-└── ExcessivelySafeCall/
-```
-
----
-
-## 🔒 Security & Quality Standards
+## Security & Quality Standards
 
 ### Development Requirements
 
 **Every logic upgrade must:**
 - ✅ Follow **Test-Driven Development** (TDD) methodology
-- ✅ Include **mutation/fuzz tests** (especially for `executeTransaction()`)
-- ✅ Maintain **100% coverage** for security-critical paths
+- ✅ Include **mutation/fuzz tests** (especially for critical protocol parts)
+- ✅ Maintain **100% coverage** 
 - ✅ Pass **formal verification** via Halmos invariant testing
 - ✅ Preserve **storage layout compatibility** (gap reserved)
 
@@ -275,7 +263,7 @@ contract SaxenismWalletLogic {
 
 ---
 
-## ⚖️ License & Acknowledgments
+## License & Acknowledgments
 
 **UNLICENSED** - This code is provided for **demonstration and educational purposes only**. All rights reserved. Not licensed for production use, modification, or distribution.
 
