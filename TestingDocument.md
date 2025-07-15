@@ -93,4 +93,12 @@ They're the most powerful testing framework available - expressions that should 
         + thresholdValid Invariant: The signature threshold must always be greater than zero and less than or equal to the number of owners.
         + implementationMustBeValidInFactory: The currently active implementation must be marked usable by the factory.
 
+## Operation Security Testing
+
+1. We also need to simulate certain conditions to check our monitoring rules as in my experience they are often untested.
+2. We also need to simulate all kinds of governance attacks on the entities using our wallets and ensure that no matter what, the funds can always be extracted.
+3. Basic things such as Fuzzing (in-built Foundry) should be implemented
+4. Static analysis via tools like Slither should be integrated in the CI pipeline and resolved before PRs can be merged.
+5. For really critical piece of our codebase, mutation testing wouldn't hurt.
+
 
