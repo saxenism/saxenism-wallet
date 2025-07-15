@@ -127,7 +127,7 @@ require(_isOwner[recovered]);    // Must be current owner
 
 **Wallet Compatibility Caveat**: ECDSA will likely remain the default signature scheme due to widespread wallet compatibility (e.g., MetaMask cannot generate BLS signatures). Alternative schemes would require specialized tooling and may limit user adoption.
 
-**Long Term Solutions**: As quantum computing matures, we must look at quantum safe, lattice-cryptography based signature schemes that are already in use in 
+**Long Term Solutions**: As quantum computing matures, we must look at quantum safe, lattice-cryptography based signature schemes that are already in use in blockchains. For example, Algorand uses FALCON.
 
 ---
 
