@@ -151,7 +151,7 @@ require(_isOwner[recovered]);    // Must be current owner
 
 ---
 
-## OpSec Framework: Monitoring
+## OpSec Framework
 
 ### Proactive Threat Detection
 
@@ -183,6 +183,12 @@ Backup Monitor (Different Tech Stack)
 ### Monitor Trusted Delegatecall Addresses
 
 For high-value wallets and wallets that want to, we can setup monitoring for their trusted "delegatecall" addresses to ensure that it does not have any dangerous combination of `delegatecall` and `selfdestruct` as that can leave the wallet unusable.
+
+### Self Hosted UI
+
+We should not only provide an option to our users to interact with our wallet via their own self-hosted UI but also make it very convinient for them to do so and actively encourage it. As the $1.4 billion ByBit hack showed us, Front End is also a very viable attack surface and in a place where all you need is one wrong click, attackers would be highly incentivised to penetrate our FrontEnd deployment pipelines to corrupt it.
+
+PS: Also prevents a lot of legal risks for us.
 
 ### Multi-Layer Incident Response
 
